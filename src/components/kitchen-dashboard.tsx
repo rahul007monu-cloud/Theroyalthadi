@@ -5,7 +5,8 @@ import { BellRing, Check, ChefHat, Clock3, Droplets, LayoutDashboard, ReceiptInd
 import type { LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DashBrand } from "@/components/dash-brand";
-import type { OrderStatus, ServiceRequest, StoredOrder } from "@/lib/db";
+import { PaymentBadge } from "@/components/payment-badge";
+import type { OrderStatus, ServiceRequest, StoredOrder } from "@/lib/types";
 import { minutesSince, relativeTime, SERVICE_LABELS } from "@/lib/time";
 
 const columns: { status: OrderStatus; title: string; action: string; next: OrderStatus }[] = [
@@ -60,6 +61,16 @@ export function KitchenDashboard() {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status })
+    }).catch(() => null);
+    if (!response?.ok) await load();
+  }
+
+  async function markPaid(id: number) {
+    setOrders((current) => current.map((order) => (order.id === id ? { ...order, payment_status: "PAID" } : order)));
+    const response = await fetch(`/api/orders/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paymentStatus: "PAID" })
     }).catch(() => null);
     if (!response?.ok) await load();
   }
@@ -181,6 +192,14 @@ export function KitchenDashboard() {
                         <div className="ticket-total">
                           <span>{order.items.reduce((sum, item) => sum + item.quantity, 0)} items</span>
                           <strong>₹{order.total}</strong>
+                        </div>
+                        <div className="ticket-payment">
+                          <PaymentBadge order={order} />
+                          {order.payment_status !== "PAID" && (
+                            <button type="button" onClick={() => markPaid(order.id)}>
+                              Mark paid
+                            </button>
+                          )}
                         </div>
                         <button type="button" onClick={() => moveOrder(order.id, column.next)}>
                           {column.next === "SERVED" && <Check size={17} />}

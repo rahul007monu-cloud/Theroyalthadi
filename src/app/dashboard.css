@@ -1114,3 +1114,57 @@
     font-size: 10pt;
   }
 }
+
+/* ---------- Payment status ---------- */
+.pay-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.pay-badge--claimed {
+  border-color: rgba(240, 160, 80, 0.7);
+  background: rgba(240, 160, 80, 0.14);
+  color: #ffc9a0;
+}
+.pay-badge--paid {
+  border-color: rgba(93, 180, 110, 0.5);
+  background: rgba(54, 140, 75, 0.14);
+  color: #9fd8a8;
+}
+.ticket-payment,
+.recent-orders__payment {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ticket-payment {
+  margin-bottom: 12px;
+}
+.recent-orders__payment {
+  grid-column: 2 / -1;
+}
+.ticket-payment button,
+.recent-orders__payment button {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(93, 180, 110, 0.5);
+  background: rgba(54, 140, 75, 0.14);
+  color: #9fd8a8;
+  font-size: 13px;
+  font-weight: 800;
+}
+.upi-preview {
+  margin-top: 18px;
+  padding: 8px;
+  border-radius: 14px;
+  background: #fff;
+}

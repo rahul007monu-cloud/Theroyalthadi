@@ -11,7 +11,8 @@ export type MenuCategory =
   | "Smoothie"
   | "Soup"
   | "Cocktails"
-  | "Lassi House";
+  | "Lassi House"
+  | "Cigarettes";
 
 export type MenuItem = {
   id: number;
@@ -21,7 +22,12 @@ export type MenuItem = {
   price: number;
   category: MenuCategory;
   vegetarian: boolean;
+  /** Tobacco: sold to adults (18+) only. */
+  ageRestricted: boolean;
 };
+
+/** Categories that are not food (no veg mark, 18+ only, never promoted). */
+export const AGE_RESTRICTED_CATEGORIES: readonly MenuCategory[] = ["Cigarettes"];
 
 type MenuEntry = readonly [name: string, price: number, note?: string];
 
@@ -123,6 +129,11 @@ const catalogue: Record<MenuCategory, readonly MenuEntry[]> = {
     ["Plain Lassi", 30],
     ["Makhaniya Lassi", 40],
     ["Masala Chhachh", 30]
+  ],
+  // Added on the owner's request (prices given by the owner). Kept last on the menu.
+  Cigarettes: [
+    ["Big Cigarette", 30],
+    ["Small Cigarette", 20]
   ]
 };
 
@@ -141,18 +152,9 @@ export const categoryHindi: Record<MenuCategory, string> = {
   Smoothie: "स्मूदी",
   Soup: "सूप",
   Cocktails: "कॉकटेल",
-  "Lassi House": "लस्सी हाउस"
+  "Lassi House": "लस्सी हाउस",
+  Cigarettes: "सिगरेट"
 };
-
-/** Items shown in the "Royal picks" rail. The owner can change this list. */
-export const royalPickNames = [
-  "Masala Tea (Kullad)",
-  "Paneer Cheese Maggi",
-  "Chilli Paneer",
-  "Paneer Cheese Pizza",
-  "Cold Coffee Special",
-  "Mojito"
-] as const;
 
 export const menuItems: MenuItem[] = menuCategories
   .flatMap((category) =>
@@ -162,7 +164,10 @@ export const menuItems: MenuItem[] = menuCategories
       description: note,
       price,
       category,
-      vegetarian: true
+      vegetarian: !AGE_RESTRICTED_CATEGORIES.includes(category),
+      ageRestricted: AGE_RESTRICTED_CATEGORIES.includes(category)
     }))
   )
   .map((item, index) => ({ ...item, id: index + 1 }));
+
+export const foodItems = menuItems.filter((item) => !item.ageRestricted);

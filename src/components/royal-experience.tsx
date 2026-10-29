@@ -1,12 +1,17 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- payment QR is generated on demand by our own API. */
+
 import dynamic from "next/dynamic";
 import type { LucideIcon } from "lucide-react";
 import {
   ArrowRight,
+  Banknote,
   BellRing,
   Check,
   ChefHat,
+  ChevronDown,
+  Cigarette,
   Citrus,
   Coffee,
   CookingPot,
@@ -22,17 +27,21 @@ import {
   Phone,
   Pizza,
   Plus,
+  QrCode,
   ReceiptIndianRupee,
   Sandwich,
   Search,
   ShoppingBag,
+  Smartphone,
   Soup,
   Star,
   Wheat,
   X
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { categoryHindi, menuCategories, menuItems, royalPickNames, type MenuCategory, type MenuItem } from "@/data/menu";
+import { categoryHindi, foodItems, menuCategories, menuItems, type MenuCategory, type MenuItem } from "@/data/menu";
+import type { UpiConfig } from "@/lib/types";
+import { buildUpiLink } from "@/lib/upi";
 
 const KulladScene = dynamic(() => import("@/components/kullad-scene"), { ssr: false });
 
@@ -49,23 +58,26 @@ const categoryIcons: Record<MenuCategory, LucideIcon> = {
   Smoothie: GlassWater,
   Soup,
   Cocktails: Martini,
-  "Lassi House": Milk
+  "Lassi House": Milk,
+  Cigarettes: Cigarette
 };
 
 type Cart = Record<number, number>;
 type ServiceType = "WAITER" | "WATER" | "BILL";
-type Sheet = "cart" | "service" | null;
+type Sheet = "cart" | "service" | "table" | null;
 type Toast = { title: string; detail: string; tone: "success" | "error" };
-type PlacedOrder = { id: number; total: number; items: number };
+type PlacedOrder = { id: number; table: number; total: number; items: number; payment: "choose" | "UPI" | "COUNTER"; claimed: boolean };
+
+const TABLES = Array.from({ length: 50 }, (_, index) => index + 1);
+const pad = (value: number) => String(value).padStart(2, "0");
+const MAPS_URL = "https://www.google.com/maps/place/The+royal+thadi/@26.4877447,74.6054583,17z";
+const lowestPrice = Math.min(...foodItems.map((item) => item.price));
 
 const serviceOptions: { type: ServiceType; title: string; hindi: string; icon: LucideIcon }[] = [
   { type: "WAITER", title: "Call waiter", hindi: "वेटर बुलाएँ", icon: BellRing },
   { type: "WATER", title: "Water", hindi: "पानी", icon: Droplets },
   { type: "BILL", title: "Bring bill", hindi: "बिल लाएँ", icon: ReceiptIndianRupee }
 ];
-
-const MAPS_URL = "https://www.google.com/maps/place/The+royal+thadi/@26.4877447,74.6054583,17z";
-const lowestPrice = Math.min(...menuItems.map((item) => item.price));
 
 function sectionId(category: MenuCategory) {
   return `menu-${category.toLowerCase().replace(/[^a-z]+/g, "-")}`;
@@ -110,47 +122,37 @@ function KulladPoster({ hidden }: { hidden: boolean }) {
           <stop offset="0.85" stopColor="#f6dc98" />
           <stop offset="1" stopColor="#7a5419" />
         </linearGradient>
-        <linearGradient id="rt-poster-plate" x1="0" x2="1">
-          <stop offset="0" stopColor="#2a0a0d" />
-          <stop offset="0.5" stopColor="#5c1b21" />
-          <stop offset="1" stopColor="#2a0a0d" />
-        </linearGradient>
         <radialGradient id="rt-poster-chai" cx="0.45" cy="0.45" r="0.6">
-          <stop offset="0" stopColor="#8f5430" />
-          <stop offset="0.7" stopColor="#bd8152" />
-          <stop offset="1" stopColor="#e3bd8e" />
-        </radialGradient>
-        <radialGradient id="rt-poster-shadow">
-          <stop offset="0" stopColor="#000" stopOpacity="0.7" />
-          <stop offset="1" stopColor="#000" stopOpacity="0" />
+          <stop offset="0" stopColor="#6e3a1d" />
+          <stop offset="0.7" stopColor="#8f5630" />
+          <stop offset="1" stopColor="#c99a6c" />
         </radialGradient>
       </defs>
-      <ellipse cx="160" cy="270" rx="130" ry="22" fill="url(#rt-poster-shadow)" />
-      <ellipse cx="160" cy="252" rx="114" ry="22" fill="url(#rt-poster-plate)" stroke="url(#rt-poster-gold)" strokeWidth="3" />
+      <ellipse cx="160" cy="252" rx="114" ry="22" fill="url(#rt-poster-gold)" opacity="0.85" />
       <path d="M94 104 L226 104 L205 236 Q160 252 115 236 Z" fill="url(#rt-poster-clay)" />
       <path d="M102 162 Q160 178 218 162" fill="none" stroke="url(#rt-poster-gold)" strokeWidth="4" />
       <ellipse cx="160" cy="104" rx="68" ry="15" fill="url(#rt-poster-gold)" />
       <ellipse cx="160" cy="105" rx="58" ry="11" fill="url(#rt-poster-chai)" />
-      <g className="rt-poster__steam" fill="none" stroke="#fff3df" strokeLinecap="round" strokeWidth="5" strokeOpacity="0.24">
-        <path d="M138 88 C126 70 150 58 138 40" />
-        <path d="M162 86 C150 64 176 52 162 30" />
-        <path d="M186 88 C174 70 198 58 186 42" />
-      </g>
     </svg>
   );
 }
 
-export function RoyalExperience({ table }: { table: string | null }) {
+export function RoyalExperience({ initialTable, upi }: { initialTable: number | null; upi: UpiConfig | null }) {
+  const [table, setTable] = useState<number | null>(initialTable);
   const [cart, setCart] = useState<Cart>({});
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState<MenuCategory>(menuCategories[0]);
   const [sheet, setSheet] = useState<Sheet>(null);
+  const [afterTablePick, setAfterTablePick] = useState<Sheet>(null);
   const [note, setNote] = useState("");
   const [placing, setPlacing] = useState(false);
   const [placedOrder, setPlacedOrder] = useState<PlacedOrder | null>(null);
+  const [savingPayment, setSavingPayment] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const [sceneReady, setSceneReady] = useState(false);
   const [sendingService, setSendingService] = useState<ServiceType | null>(null);
+  const [adultConfirmed, setAdultConfirmed] = useState(false);
+  const [pendingAdultItem, setPendingAdultItem] = useState<MenuItem | null>(null);
   const toastTimer = useRef<number | null>(null);
   const chipsRef = useRef<HTMLDivElement>(null);
 
@@ -169,13 +171,10 @@ export function RoyalExperience({ table }: { table: string | null }) {
         .filter((section) => section.items.length > 0),
     [term]
   );
-  const royalPicks = useMemo(
-    () => royalPickNames.map((name) => menuItems.find((item) => item.name === name)).filter((item): item is MenuItem => Boolean(item)),
-    []
-  );
   const cartLines = useMemo(() => menuItems.filter((item) => cart[item.id]), [cart]);
   const itemCount = cartLines.reduce((sum, item) => sum + cart[item.id], 0);
   const subtotal = cartLines.reduce((sum, item) => sum + item.price * cart[item.id], 0);
+  const tableLabel = table ? pad(table) : null;
 
   const showToast = useCallback((title: string, detail: string, tone: Toast["tone"] = "success") => {
     if (toastTimer.current) window.clearTimeout(toastTimer.current);
@@ -183,7 +182,7 @@ export function RoyalExperience({ table }: { table: string | null }) {
     toastTimer.current = window.setTimeout(() => setToast(null), 4200);
   }, []);
 
-  const changeQuantity = useCallback((id: number, amount: number) => {
+  const applyQuantity = useCallback((id: number, amount: number) => {
     setCart((current) => {
       const nextQuantity = Math.min(20, Math.max(0, (current[id] ?? 0) + amount));
       const next = { ...current, [id]: nextQuantity };
@@ -191,6 +190,14 @@ export function RoyalExperience({ table }: { table: string | null }) {
       return next;
     });
   }, []);
+
+  function changeQuantity(item: MenuItem, amount: number) {
+    if (amount > 0 && item.ageRestricted && !adultConfirmed) {
+      setPendingAdultItem(item);
+      return;
+    }
+    applyQuantity(item.id, amount);
+  }
 
   // Highlight the category chip for the section currently near the top of the screen.
   useEffect(() => {
@@ -217,12 +224,12 @@ export function RoyalExperience({ table }: { table: string | null }) {
   }, [activeCategory]);
 
   useEffect(() => {
-    const locked = sheet !== null || placedOrder !== null;
+    const locked = sheet !== null || placedOrder !== null || pendingAdultItem !== null;
     document.body.style.overflow = locked ? "hidden" : "";
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setSheet(null);
-        setPlacedOrder(null);
+        setPendingAdultItem(null);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -230,7 +237,7 @@ export function RoyalExperience({ table }: { table: string | null }) {
       document.body.style.overflow = "";
       window.removeEventListener("keydown", onKey);
     };
-  }, [sheet, placedOrder]);
+  }, [sheet, placedOrder, pendingAdultItem]);
 
   useEffect(
     () => () => {
@@ -244,22 +251,41 @@ export function RoyalExperience({ table }: { table: string | null }) {
     document.getElementById(sectionId(category))?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  function openNeedingTable(next: Exclude<Sheet, "table" | null>) {
+    if (table) {
+      setSheet(next);
+    } else {
+      setAfterTablePick(next);
+      setSheet("table");
+    }
+  }
+
+  function chooseTable(value: number) {
+    setTable(value);
+    window.history.replaceState(null, "", `?table=${value}`);
+    const next = afterTablePick;
+    setAfterTablePick(null);
+    setSheet(next);
+    showToast(`Table ${pad(value)} चुनी गई`, "अब आपका order इसी table पर आएगा।");
+  }
+
   async function placeOrder() {
-    if (!table || cartLines.length === 0 || placing) return;
+    if (!table) {
+      setAfterTablePick("cart");
+      setSheet("table");
+      return;
+    }
+    if (cartLines.length === 0 || placing) return;
     setPlacing(true);
     try {
       const response = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tableNumber: Number(table),
-          note,
-          items: cartLines.map((item) => ({ menuItemId: item.id, quantity: cart[item.id] }))
-        })
+        body: JSON.stringify({ tableNumber: table, note, items: cartLines.map((item) => ({ menuItemId: item.id, quantity: cart[item.id] })) })
       });
       const result = (await response.json().catch(() => ({}))) as { orderId?: number; total?: number; error?: string };
       if (!response.ok || !result.orderId) throw new Error(result.error ?? "कृपया दोबारा कोशिश करें या waiter को बुलाएँ।");
-      setPlacedOrder({ id: result.orderId, total: result.total ?? subtotal, items: itemCount });
+      setPlacedOrder({ id: result.orderId, table, total: result.total ?? subtotal, items: itemCount, payment: "choose", claimed: false });
       setCart({});
       setNote("");
       setSheet(null);
@@ -270,10 +296,33 @@ export function RoyalExperience({ table }: { table: string | null }) {
     }
   }
 
+  async function savePayment(method: "UPI" | "COUNTER", claimedPaid = false) {
+    if (!placedOrder || savingPayment) return;
+    setSavingPayment(true);
+    try {
+      const response = await fetch(`/api/orders/${placedOrder.id}/payment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ method, claimedPaid })
+      });
+      if (!response.ok) {
+        const result = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(result.error ?? "कृपया दोबारा कोशिश करें।");
+      }
+      setPlacedOrder({ ...placedOrder, payment: method, claimed: claimedPaid || placedOrder.claimed });
+      if (claimedPaid) showToast("धन्यवाद!", "Staff आपका payment check करके confirm करेगा।");
+    } catch (error) {
+      showToast("Payment save नहीं हुआ", error instanceof Error ? error.message : "कृपया दोबारा कोशिश करें।", "error");
+    } finally {
+      setSavingPayment(false);
+    }
+  }
+
   async function requestService(type: ServiceType) {
     const option = serviceOptions.find((item) => item.type === type);
     if (!table || !option) {
-      showToast("Table QR scan करें", "Service के लिए अपनी table पर लगा QR scan करें।", "error");
+      setAfterTablePick("service");
+      setSheet("table");
       return;
     }
     setSendingService(type);
@@ -281,18 +330,20 @@ export function RoyalExperience({ table }: { table: string | null }) {
       const response = await fetch("/api/service-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tableNumber: Number(table), type })
+        body: JSON.stringify({ tableNumber: table, type })
       });
       const result = (await response.json().catch(() => ({}))) as { duplicate?: boolean; error?: string };
       if (!response.ok) throw new Error(result.error ?? "कृपया दोबारा कोशिश करें।");
       setSheet(null);
-      showToast(`${option.hindi} · Table ${table}`, result.duplicate ? "आपकी request पहले से staff के पास है।" : "Staff को सूचना भेज दी गई है।");
+      showToast(`${option.hindi} · Table ${pad(table)}`, result.duplicate ? "आपकी request पहले से staff के पास है।" : "Staff को सूचना भेज दी गई है।");
     } catch (error) {
       showToast("Request नहीं गई", error instanceof Error ? error.message : "कृपया दोबारा कोशिश करें।", "error");
     } finally {
       setSendingService(null);
     }
   }
+
+  const paymentNote = placedOrder ? `Table ${pad(placedOrder.table)} Order ${placedOrder.id}` : "";
 
   return (
     <main className="rt">
@@ -309,15 +360,16 @@ export function RoyalExperience({ table }: { table: string | null }) {
           </span>
         </a>
         <div className="rt-header__actions">
-          <span className={`rt-table-pill ${table ? "" : "rt-table-pill--empty"}`}>
-            {table ? (
+          <button type="button" className={`rt-table-pill ${table ? "" : "rt-table-pill--empty"}`} onClick={() => setSheet("table")}>
+            {tableLabel ? (
               <>
-                Table <b>{table}</b>
+                Table <b>{tableLabel}</b>
               </>
             ) : (
-              "Menu"
+              "Table चुनें"
             )}
-          </span>
+            <ChevronDown size={15} />
+          </button>
           <button
             type="button"
             className="rt-icon-button"
@@ -331,81 +383,41 @@ export function RoyalExperience({ table }: { table: string | null }) {
       </header>
 
       <section className="rt-hero" id="top">
-        <div className="rt-hero__stage">
-          <div className="rt-hero__halo" aria-hidden="true" />
-          <KulladPoster hidden={sceneReady} />
-          <KulladScene onReady={() => setSceneReady(true)} onFail={() => setSceneReady(false)} />
-        </div>
         <div className="rt-hero__copy">
-          <p className="rt-eyebrow">
-            <span />
-            Nausar Ghati · Ajmer
-            <span />
-          </p>
+          <p className="rt-eyebrow">Nausar Ghati · Ajmer</p>
           <h1>
             <span className="rt-hindi-display" lang="hi">
               पधारो सा
             </span>
             <span className="rt-wordmark">The Royal Thadi</span>
           </h1>
-          <p className="rt-hero__lede">Kullad chai, masala maggi and hot street snacks, served the royal way.</p>
           <ul className="rt-hero__facts">
             <li>
-              <Star size={14} fill="currentColor" /> 4.5 on Google
+              <Star size={13} fill="currentColor" /> 4.5 Google
             </li>
-            <li>{menuItems.length} dishes</li>
+            <li>{foodItems.length} dishes</li>
             <li>From ₹{lowestPrice}</li>
           </ul>
-          <div className="rt-hero__actions">
-            <a className="rt-button rt-button--gold" href="#menu">
-              Menu देखें <ArrowRight size={18} />
-            </a>
-            <button type="button" className="rt-button rt-button--ghost" onClick={() => setSheet("service")}>
-              <BellRing size={18} /> Service
-            </button>
-          </div>
-          {!table && <p className="rt-hero__hint">Order करने के लिए अपनी table पर लगा QR code scan करें।</p>}
+        </div>
+        <div className="rt-hero__stage">
+          <div className="rt-hero__halo" aria-hidden="true" />
+          <KulladPoster hidden={sceneReady} />
+          <KulladScene onReady={() => setSceneReady(true)} onFail={() => setSceneReady(false)} />
+        </div>
+        <div className="rt-hero__actions">
+          <button type="button" className={`rt-button ${table ? "rt-button--ghost" : "rt-button--gold"}`} onClick={() => setSheet("table")}>
+            {tableLabel ? `Table ${tableLabel} · बदलें` : "अपनी table चुनें"}
+          </button>
+          <button type="button" className="rt-button rt-button--ghost" onClick={() => openNeedingTable("service")}>
+            <BellRing size={18} /> Service
+          </button>
         </div>
       </section>
 
-      <section className="rt-picks" aria-labelledby="rt-picks-title">
-        <div className="rt-section-head">
-          <p className="rt-kicker">Royal picks</p>
-          <h2 id="rt-picks-title">
-            Start with a <em>classic</em>
-          </h2>
-        </div>
-        <div className="rt-picks__rail">
-          {royalPicks.map((item) => {
-            const Icon = categoryIcons[item.category];
-            return (
-              <article className="rt-pick" key={item.id}>
-                <div className="rt-pick__medal">
-                  <Icon size={30} strokeWidth={1.4} />
-                </div>
-                <p className="rt-pick__category">{item.category}</p>
-                <h3>{item.name}</h3>
-                <div className="rt-pick__footer">
-                  <strong>₹{item.price}</strong>
-                  <QuantityControl item={item} quantity={cart[item.id] ?? 0} onChange={(amount) => changeQuantity(item.id, amount)} />
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      </section>
-
-      <section className="rt-menu" id="menu" aria-labelledby="rt-menu-title">
-        <div className="rt-section-head rt-section-head--center">
-          <p className="rt-kicker">The menu · मेन्यू</p>
-          <h2 id="rt-menu-title">
-            Our royal <em>selection</em>
-          </h2>
-        </div>
-
+      <section className="rt-menu" id="menu" aria-label="Menu">
         <label className="rt-search">
           <Search size={18} />
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search maggi, chai, pizza…" aria-label="Search the menu" />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search chai, maggi, cigarette…" aria-label="Search the menu" />
           {search && (
             <button type="button" onClick={() => setSearch("")} aria-label="Clear search">
               <X size={16} />
@@ -440,12 +452,13 @@ export function RoyalExperience({ table }: { table: string | null }) {
           <div className="rt-sections">
             {sections.map(({ category, items }) => {
               const Icon = categoryIcons[category];
+              const restricted = items[0]?.ageRestricted;
               return (
                 <section
                   key={category}
                   id={sectionId(category)}
                   data-menu-section={category}
-                  className="rt-category"
+                  className={`rt-category ${restricted ? "rt-category--restricted" : ""}`}
                   aria-labelledby={`${sectionId(category)}-title`}
                 >
                   <header className="rt-category__head">
@@ -457,22 +470,29 @@ export function RoyalExperience({ table }: { table: string | null }) {
                       <p lang="hi">{categoryHindi[category]}</p>
                     </div>
                     <span className="rt-category__count" aria-label={`${items.length} items`}>
-                      {items.length}
+                      {restricted ? "18+" : items.length}
                     </span>
                   </header>
+                  {restricted && (
+                    <p className="rt-warning-strip" lang="hi">
+                      सिर्फ 18+ के लिए · धूम्रपान स्वास्थ्य के लिए हानिकारक है
+                    </p>
+                  )}
                   <ul className="rt-items">
                     {items.map((item) => (
                       <li className="rt-item" key={item.id}>
-                        <span className="rt-veg" title="Vegetarian">
-                          <i />
-                        </span>
+                        {item.vegetarian && (
+                          <span className="rt-veg" title="Vegetarian">
+                            <i />
+                          </span>
+                        )}
                         <div className="rt-item__copy">
                           <span className="rt-item__name">{item.name}</span>
                           {item.description && <span className="rt-item__note">{item.description}</span>}
                         </div>
                         <span className="rt-item__leader" aria-hidden="true" />
                         <span className="rt-item__price">₹{item.price}</span>
-                        <QuantityControl item={item} quantity={cart[item.id] ?? 0} onChange={(amount) => changeQuantity(item.id, amount)} />
+                        <QuantityControl item={item} quantity={cart[item.id] ?? 0} onChange={(amount) => changeQuantity(item, amount)} />
                       </li>
                     ))}
                   </ul>
@@ -524,11 +544,42 @@ export function RoyalExperience({ table }: { table: string | null }) {
 
       <div className={`rt-backdrop ${sheet ? "is-open" : ""}`} onClick={() => setSheet(null)} aria-hidden="true" />
 
+      {/* Table picker */}
+      <aside className={`rt-sheet ${sheet === "table" ? "is-open" : ""}`} role="dialog" aria-modal="true" aria-label="Choose your table" aria-hidden={sheet !== "table"}>
+        <div className="rt-sheet__grip" />
+        <header className="rt-sheet__head">
+          <div>
+            <p className="rt-kicker">Tables 1 – 50</p>
+            <h2>अपनी table चुनें</h2>
+          </div>
+          <button type="button" className="rt-icon-button" onClick={() => setSheet(null)} aria-label="Close">
+            <X size={18} />
+          </button>
+        </header>
+        <div className="rt-table-grid">
+          {TABLES.map((value) => (
+            <button
+              type="button"
+              key={value}
+              className={`rt-table-option ${table === value ? "is-selected" : ""}`}
+              onClick={() => chooseTable(value)}
+              aria-pressed={table === value}
+              aria-label={`Table ${value}`}
+            >
+              {pad(value)}
+            </button>
+          ))}
+        </div>
+      </aside>
+
+      {/* Cart */}
       <aside className={`rt-sheet ${sheet === "cart" ? "is-open" : ""}`} role="dialog" aria-modal="true" aria-label="Your order" aria-hidden={sheet !== "cart"}>
         <div className="rt-sheet__grip" />
         <header className="rt-sheet__head">
           <div>
-            <p className="rt-kicker">{table ? `Table ${table}` : "Browse only"}</p>
+            <button type="button" className="rt-sheet__table" onClick={() => { setAfterTablePick("cart"); setSheet("table"); }}>
+              {tableLabel ? `Table ${tableLabel}` : "Table नहीं चुनी"} · बदलें
+            </button>
             <h2>Your order</h2>
           </div>
           <button type="button" className="rt-icon-button" onClick={() => setSheet(null)} aria-label="Close">
@@ -539,7 +590,7 @@ export function RoyalExperience({ table }: { table: string | null }) {
           <div className="rt-sheet__empty">
             <ShoppingBag size={34} />
             <h3>Order खाली है</h3>
-            <p>Menu से कुछ स्वादिष्ट चुनें।</p>
+            <p>Menu से कुछ चुनें।</p>
           </div>
         ) : (
           <>
@@ -550,7 +601,7 @@ export function RoyalExperience({ table }: { table: string | null }) {
                     <strong>{item.name}</strong>
                     <small>₹{item.price} each</small>
                   </div>
-                  <QuantityControl item={item} quantity={cart[item.id]} onChange={(amount) => changeQuantity(item.id, amount)} />
+                  <QuantityControl item={item} quantity={cart[item.id]} onChange={(amount) => changeQuantity(item, amount)} />
                   <span className="rt-cart-line__total">₹{item.price * cart[item.id]}</span>
                 </li>
               ))}
@@ -561,22 +612,21 @@ export function RoyalExperience({ table }: { table: string | null }) {
                 <textarea value={note} onChange={(event) => setNote(event.target.value)} maxLength={300} placeholder="Less spicy, no onion…" />
               </label>
               <div className="rt-total">
-                <span>Total · {itemCount} {itemCount === 1 ? "item" : "items"}</span>
+                <span>
+                  Total · {itemCount} {itemCount === 1 ? "item" : "items"}
+                </span>
                 <strong>₹{subtotal}</strong>
               </div>
-              {table ? (
-                <button type="button" className="rt-button rt-button--gold rt-button--block" onClick={placeOrder} disabled={placing}>
-                  {placing ? "Sending to kitchen…" : `Place order · Table ${table}`}
-                  {!placing && <ArrowRight size={18} />}
-                </button>
-              ) : (
-                <p className="rt-warning">Order भेजने के लिए अपनी table पर लगा QR code scan करें।</p>
-              )}
+              <button type="button" className="rt-button rt-button--gold rt-button--block" onClick={placeOrder} disabled={placing}>
+                {placing ? "Sending to kitchen…" : tableLabel ? `Order भेजें · Table ${tableLabel}` : "Table चुनें और order भेजें"}
+                {!placing && <ArrowRight size={18} />}
+              </button>
             </div>
           </>
         )}
       </aside>
 
+      {/* Service */}
       <aside
         className={`rt-sheet rt-sheet--compact ${sheet === "service" ? "is-open" : ""}`}
         role="dialog"
@@ -587,7 +637,7 @@ export function RoyalExperience({ table }: { table: string | null }) {
         <div className="rt-sheet__grip" />
         <header className="rt-sheet__head">
           <div>
-            <p className="rt-kicker">{table ? `Table ${table}` : "Scan your table QR"}</p>
+            <p className="rt-kicker">{tableLabel ? `Table ${tableLabel}` : "Table चुनें"}</p>
             <h2>How can we help?</h2>
           </div>
           <button type="button" className="rt-icon-button" onClick={() => setSheet(null)} aria-label="Close">
@@ -596,13 +646,7 @@ export function RoyalExperience({ table }: { table: string | null }) {
         </header>
         <div className="rt-service-grid">
           {serviceOptions.map((option) => (
-            <button
-              type="button"
-              key={option.type}
-              className="rt-service"
-              onClick={() => requestService(option.type)}
-              disabled={sendingService !== null}
-            >
+            <button type="button" key={option.type} className="rt-service" onClick={() => requestService(option.type)} disabled={sendingService !== null}>
               <span className="rt-service__icon">
                 <option.icon size={24} strokeWidth={1.6} />
               </span>
@@ -613,20 +657,111 @@ export function RoyalExperience({ table }: { table: string | null }) {
         </div>
       </aside>
 
+      {/* 18+ confirmation for tobacco */}
+      {pendingAdultItem && (
+        <div className="rt-confirm" role="dialog" aria-modal="true" aria-labelledby="rt-adult-title">
+          <div className="rt-confirm__card">
+            <span className="rt-confirm__seal rt-confirm__seal--warning">18+</span>
+            <h2 id="rt-adult-title">सिर्फ 18+ के लिए</h2>
+            <p>Cigarette सिर्फ 18 साल या उससे ज़्यादा उम्र वालों को दी जाती है। धूम्रपान स्वास्थ्य के लिए हानिकारक है।</p>
+            <div className="rt-confirm__actions">
+              <button type="button" className="rt-button rt-button--ghost" onClick={() => setPendingAdultItem(null)}>
+                नहीं
+              </button>
+              <button
+                type="button"
+                className="rt-button rt-button--gold"
+                onClick={() => {
+                  setAdultConfirmed(true);
+                  applyQuantity(pendingAdultItem.id, 1);
+                  setPendingAdultItem(null);
+                }}
+              >
+                हाँ, मैं 18+ हूँ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Order placed + payment */}
       {placedOrder && (
         <div className="rt-confirm" role="dialog" aria-modal="true" aria-labelledby="rt-confirm-title">
-          <div className="rt-confirm__card">
+          <div className="rt-confirm__card rt-confirm__card--payment">
             <span className="rt-confirm__seal">
-              <Check size={34} strokeWidth={2.4} />
+              <Check size={32} strokeWidth={2.4} />
             </span>
-            <p className="rt-kicker">Order #{String(placedOrder.id).padStart(3, "0")}</p>
-            <h2 id="rt-confirm-title">शुक्रिया! Order भेज दिया गया</h2>
-            <p>
-              Table {table} · {placedOrder.items} {placedOrder.items === 1 ? "item" : "items"} · ₹{placedOrder.total}
+            <p className="rt-kicker">
+              Order #{String(placedOrder.id).padStart(3, "0")} · Table {pad(placedOrder.table)}
             </p>
-            <p className="rt-fine">आपका order kitchen screen पर पहुँच गया है।</p>
-            <button type="button" className="rt-button rt-button--gold rt-button--block" onClick={() => setPlacedOrder(null)}>
-              Continue
+            <h2 id="rt-confirm-title">Order kitchen में पहुँच गया</h2>
+            <div className="rt-pay-amount">
+              <span>
+                {placedOrder.items} {placedOrder.items === 1 ? "item" : "items"} · Total
+              </span>
+              <strong>₹{placedOrder.total}</strong>
+            </div>
+
+            {placedOrder.payment === "choose" && (
+              <>
+                <p className="rt-pay-question">Payment कैसे करेंगे?</p>
+                <div className="rt-pay-options">
+                  {upi && (
+                    <button type="button" className="rt-pay-option" onClick={() => savePayment("UPI")} disabled={savingPayment}>
+                      <QrCode size={26} />
+                      <strong>UPI / QR</strong>
+                      <small>अभी pay करें</small>
+                    </button>
+                  )}
+                  <button type="button" className="rt-pay-option" onClick={() => savePayment("COUNTER")} disabled={savingPayment}>
+                    <Banknote size={26} />
+                    <strong>Cash / Counter</strong>
+                    <small>बाद में pay करें</small>
+                  </button>
+                </div>
+                {!upi && <p className="rt-fine">UPI QR जल्द जुड़ेगा। अभी counter पर payment करें।</p>}
+              </>
+            )}
+
+            {placedOrder.payment === "UPI" && upi && (
+              <div className="rt-upi">
+                <img
+                  src={`/api/upi-qr?amount=${placedOrder.total}&note=${encodeURIComponent(paymentNote)}`}
+                  alt={`UPI QR for ₹${placedOrder.total}`}
+                  width={240}
+                  height={240}
+                />
+                <p className="rt-upi__payee">
+                  {upi.name} · <span>{upi.id}</span>
+                </p>
+                <a className="rt-button rt-button--gold rt-button--block" href={buildUpiLink(upi, placedOrder.total, paymentNote)}>
+                  <Smartphone size={18} /> UPI app से ₹{placedOrder.total} pay करें
+                </a>
+                <p className="rt-fine">दूसरे phone से QR scan करें, या screenshot लेकर UPI app में “Scan from gallery” से pay करें।</p>
+                {placedOrder.claimed ? (
+                  <p className="rt-success-line">
+                    <Check size={16} /> Staff payment confirm करेगा
+                  </p>
+                ) : (
+                  <button type="button" className="rt-button rt-button--ghost rt-button--block" onClick={() => savePayment("UPI", true)} disabled={savingPayment}>
+                    <Check size={18} /> Payment कर दिया
+                  </button>
+                )}
+              </div>
+            )}
+
+            {placedOrder.payment === "COUNTER" && (
+              <p className="rt-pay-counter">
+                <Banknote size={18} /> Bill counter पर pay करें। Bill मंगाने के लिए Service में “बिल लाएँ” दबाएँ।
+              </p>
+            )}
+
+            <button
+              type="button"
+              className={`rt-button rt-button--block ${placedOrder.payment === "choose" ? "rt-button--text" : "rt-button--gold"}`}
+              onClick={() => setPlacedOrder(null)}
+            >
+              {placedOrder.payment === "choose" ? "बाद में चुनेंगे" : "Menu पर वापस जाएँ"}
             </button>
           </div>
         </div>
