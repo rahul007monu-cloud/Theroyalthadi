@@ -12,6 +12,10 @@ const columns: { status: OrderStatus; title: string; action: string; next: Order
   { status: "READY", title: "Ready to serve", action: "Mark served", next: "SERVED" }
 ];
 
+function orderAgeMinutes(date: string) {
+  return Math.max(0, (Date.now() - new Date(`${date}Z`).getTime()) / 60000);
+}
+
 function relativeTime(date: string) {
   const seconds = Math.max(0, Math.round((Date.now() - new Date(`${date}Z`).getTime()) / 1000));
   if (seconds < 60) return `${seconds}s ago`;
@@ -64,7 +68,7 @@ export function KitchenDashboard() {
             <div className="kanban-list">
               {columnOrders.length === 0 ? <div className="column-empty">{loading ? <RefreshCw className="spin" /> : <ChefHat />}<span>{loading ? "Loading orders" : "No orders here"}</span></div> : columnOrders.map((order) => <article className="order-ticket" key={order.id}>
                 <div className="ticket-top"><div><small>Table</small><strong>{String(order.table_number).padStart(2, "0")}</strong></div><span>#{String(order.id).padStart(3, "0")}</span></div>
-                <div className="ticket-time"><Clock3 size={13} />{relativeTime(order.created_at)}<i className={Number(relativeTime(order.created_at).replace(/\D/g, "")) > 15 ? "late" : ""} /></div>
+                <div className="ticket-time"><Clock3 size={13} />{relativeTime(order.created_at)}<i className={orderAgeMinutes(order.created_at) > 15 ? "late" : ""} /></div>
                 <div className="ticket-items">{order.items.map((item) => <div key={item.id}><b>{item.quantity}×</b><span>{item.item_name}</span></div>)}</div>
                 {order.note && <p className="ticket-note"><UtensilsCrossed size={13} />{order.note}</p>}
                 <div className="ticket-total"><span>{order.items.reduce((sum, item) => sum + item.quantity, 0)} items</span><strong>₹{order.total}</strong></div>

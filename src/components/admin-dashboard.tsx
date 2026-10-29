@@ -81,7 +81,7 @@ export function AdminDashboard() {
 
       <section className="dash-main">
         <header className="dash-topbar">
-          <div><span>Thursday · Royal operations</span><h1>{title}</h1></div>
+          <div><span>Live · Royal operations</span><h1>{title}</h1></div>
           <div className="live-pill"><i /> Live</div>
         </header>
 
