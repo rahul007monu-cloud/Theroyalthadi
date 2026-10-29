@@ -17,15 +17,16 @@ import {
   QrCode,
   Settings,
   ShoppingBag,
-  Upload,
+
   Users,
   UtensilsCrossed
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DashBrand } from "@/components/dash-brand";
+import { PaymentBadge } from "@/components/payment-badge";
 import { categoryHindi, menuCategories, menuItems } from "@/data/menu";
-import type { ServiceRequest, StoredOrder } from "@/lib/db";
+import type { ServiceRequest, StoredOrder, UpiConfig } from "@/lib/types";
 import { SERVICE_LABELS } from "@/lib/time";
 
 type AdminView = "overview" | "tables" | "menu" | "settings";
@@ -40,12 +41,11 @@ const navigation: { id: AdminView; label: string; icon: LucideIcon }[] = [
 const tables = Array.from({ length: 50 }, (_, index) => index + 1);
 const pad = (value: number) => String(value).padStart(2, "0");
 
-export function AdminDashboard() {
+export function AdminDashboard({ upi }: { upi: UpiConfig | null }) {
   const [view, setView] = useState<AdminView>("overview");
   const [orders, setOrders] = useState<StoredOrder[]>([]);
   const [requests, setRequests] = useState<ServiceRequest[]>([]);
   const [error, setError] = useState("");
-  const [paymentQr, setPaymentQr] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -71,12 +71,15 @@ export function AdminDashboard() {
     };
   }, [load]);
 
-  useEffect(
-    () => () => {
-      if (paymentQr) URL.revokeObjectURL(paymentQr);
-    },
-    [paymentQr]
-  );
+  async function markPaid(id: number) {
+    setOrders((current) => current.map((order) => (order.id === id ? { ...order, payment_status: "PAID" } : order)));
+    const response = await fetch(`/api/orders/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paymentStatus: "PAID" })
+    }).catch(() => null);
+    if (!response?.ok) await load();
+  }
 
   const activeOrders = orders.filter((order) => !["SERVED", "CANCELLED"].includes(order.status));
   const tableStatus = useMemo(() => {
@@ -224,6 +227,14 @@ export function AdminDashboard() {
                         </div>
                         <span className={`status-label status-${order.status.toLowerCase()}`}>{order.status}</span>
                         <em>₹{order.total}</em>
+                        <div className="recent-orders__payment">
+                          <PaymentBadge order={order} />
+                          {order.payment_status !== "PAID" && (
+                            <button type="button" onClick={() => markPaid(order.id)}>
+                              Mark paid
+                            </button>
+                          )}
+                        </div>
                       </li>
                     ))}
                   </ul>
@@ -303,27 +314,28 @@ export function AdminDashboard() {
                 <QrCode size={24} />
               </span>
               <p className="dash-kicker">Payments</p>
-              <h2>Payment QR</h2>
-              <p className="panel-note">अभी यह सिर्फ preview है। Online database जुड़ने के बाद यह customers को bill के साथ दिखेगा।</p>
-              <label className="upload-box">
-                {paymentQr ? (
-                  <img src={paymentQr} alt="Payment QR preview" width={200} height={200} />
-                ) : (
-                  <>
-                    <Upload size={26} />
-                    <strong>Upload payment QR</strong>
-                    <span>PNG or JPG</span>
-                  </>
-                )}
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (file) setPaymentQr(URL.createObjectURL(file));
-                  }}
-                />
-              </label>
+              <h2>UPI payment</h2>
+              {upi ? (
+                <>
+                  <p className="panel-note">Customers order के बाद इसी UPI ID का QR (सही amount के साथ) देखते हैं।</p>
+                  <dl className="setting-fields">
+                    <div>
+                      <dt>UPI ID</dt>
+                      <dd>{upi.id}</dd>
+                    </div>
+                    <div>
+                      <dt>Name shown</dt>
+                      <dd>{upi.name}</dd>
+                    </div>
+                  </dl>
+                  <img className="upi-preview" src="/api/upi-qr?amount=1&note=Test%20payment" alt="Test UPI QR for ₹1" width={180} height={180} />
+                </>
+              ) : (
+                <p className="panel-note">
+                  UPI ID अभी set नहीं है, इसलिए customers को अभी सिर्फ “Cash / Counter” option दिखता है। Vercel → Settings → Environment Variables में
+                  <b> UPI_ID</b> (और चाहें तो <b>UPI_PAYEE_NAME</b>) डालें, फिर Redeploy करें।
+                </p>
+              )}
             </section>
             <section className="dash-panel setting-card">
               <span className="setting-icon">
