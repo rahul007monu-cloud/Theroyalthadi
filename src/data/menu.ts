@@ -16,12 +16,10 @@ export type MenuCategory =
 export type MenuItem = {
   id: number;
   name: string;
-  hindiName: string;
-  description: string;
+  /** Only real notes printed on the cafe menu, e.g. tea ingredients. */
+  description?: string;
   price: number;
   category: MenuCategory;
-  image: string;
-  badge?: string;
   vegetarian: boolean;
 };
 
@@ -40,7 +38,7 @@ const catalogue: Record<MenuCategory, readonly MenuEntry[]> = {
     ["Bread Butter", 20],
     ["Veg Sandwich", 50],
     ["Aloo Cheese Sandwich", 60],
-    ["Paneer Cheese Sandwich", 70],
+    ["Paneer Cheese Sandwich", 90],
     ["Garlic Cheese Bread", 50],
     ["Burger", 50],
     ["Veg Burger", 60],
@@ -115,7 +113,7 @@ const catalogue: Record<MenuCategory, readonly MenuEntry[]> = {
     ["Veg Manchow Soup", 40],
     ["Veg Sweet Corn Soup", 40],
     ["Hot N Sour Soup", 40],
-    ["Mix Veg Soup", 50]
+    ["Mix Veg Soup", 40]
   ],
   Cocktails: [
     ["Golden Wine", 40],
@@ -128,11 +126,9 @@ const catalogue: Record<MenuCategory, readonly MenuEntry[]> = {
   ]
 };
 
-const categoryOrder = Object.keys(catalogue) as MenuCategory[];
+export const menuCategories = Object.keys(catalogue) as MenuCategory[];
 
-export const categories = ["All", ...categoryOrder] as const;
-
-const categoryHindi: Record<MenuCategory, string> = {
+export const categoryHindi: Record<MenuCategory, string> = {
   "Maggi House": "मैगी हाउस",
   Snacks: "स्नैक्स",
   "Pizza House": "पिज़्ज़ा हाउस",
@@ -148,41 +144,25 @@ const categoryHindi: Record<MenuCategory, string> = {
   "Lassi House": "लस्सी हाउस"
 };
 
-const categoryImages: Record<MenuCategory, string> = {
-  "Maggi House": "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=1200&q=88",
-  Snacks: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=1200&q=88",
-  "Pizza House": "https://images.unsplash.com/photo-1574071318508-1cdbab80d002?auto=format&fit=crop&w=1200&q=88",
-  "Paratha House": "https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=1200&q=88",
-  "Pasta House": "https://images.unsplash.com/photo-1473093295043-cdd812d0e601?auto=format&fit=crop&w=1200&q=88",
-  "Thadi Special": "https://images.unsplash.com/photo-1551538827-9c037cb4f32a?auto=format&fit=crop&w=1200&q=88",
-  "Tea House": "https://images.unsplash.com/photo-1594631252845-29fc4cc8cde9?auto=format&fit=crop&w=1200&q=88",
-  "Coffee Special": "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=1200&q=88",
-  Shakes: "https://images.unsplash.com/photo-1572490122747-3968b75cc699?auto=format&fit=crop&w=1200&q=88",
-  Smoothie: "https://images.unsplash.com/photo-1505252585461-04db1eb84625?auto=format&fit=crop&w=1200&q=88",
-  Soup: "https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=1200&q=88",
-  Cocktails: "https://images.unsplash.com/photo-1551024709-8f23befc6f87?auto=format&fit=crop&w=1200&q=88",
-  "Lassi House": "https://images.unsplash.com/photo-1577805947697-89e18249d767?auto=format&fit=crop&w=1200&q=88"
-};
+/** Items shown in the "Royal picks" rail. The owner can change this list. */
+export const royalPickNames = [
+  "Masala Tea (Kullad)",
+  "Paneer Cheese Maggi",
+  "Chilli Paneer",
+  "Paneer Cheese Pizza",
+  "Cold Coffee Special",
+  "Mojito"
+] as const;
 
-const highlightedItems: Record<string, string> = {
-  "Paneer Cheese Maggi": "House special",
-  "Chilli Paneer": "Popular",
-  "Paneer Cheese Pizza": "Popular",
-  Mojito: "Thadi special",
-  "Cold Coffee Special": "Signature",
-  "Makhaniya Lassi": "Classic"
-};
-
-export const menuItems: MenuItem[] = categoryOrder.flatMap((category) =>
-  catalogue[category].map(([name, price, note]) => ({
-    id: 0,
-    name,
-    hindiName: categoryHindi[category],
-    description: note ?? `From The Royal Thadi's ${category} selection.`,
-    price,
-    category,
-    image: categoryImages[category],
-    badge: highlightedItems[name],
-    vegetarian: true
-  }))
-).map((item, index) => ({ ...item, id: index + 1 }));
+export const menuItems: MenuItem[] = menuCategories
+  .flatMap((category) =>
+    catalogue[category].map(([name, price, note]) => ({
+      id: 0,
+      name,
+      description: note,
+      price,
+      category,
+      vegetarian: true
+    }))
+  )
+  .map((item, index) => ({ ...item, id: index + 1 }));

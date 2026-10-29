@@ -1,14 +1,19 @@
 # The Royal Thadi
 
-Luxury QR-based cafe ordering experience for The Royal Thadi, Nausar Ghati, Ajmer.
+Luxury QR-based cafe ordering for The Royal Thadi, Nausar Ghati, Ajmer.
 
-## Included experiences
+## Screens
 
-- `/` — customer ordering; pass `?table=1` through `?table=50`
-- `/kitchen` — live order queue with preparation statuses
-- `/admin` — overview, 50 unique table QR codes, menu and payment settings
-- `/api/orders` — validated table-tagged order API
-- `/api/qr?table=1` — downloadable QR generator
+- `/?table=1` … `/?table=50` — customer menu with 3D kullad hero, search, category navigation, cart and ordering.
+  Without a valid `table` the menu is browse-only, so no order can reach the wrong table.
+- `/kitchen` — live order board (New → Accepted → Preparing → Ready → Served) plus waiter / water / bill calls.
+- `/admin` — overview, live floor of 50 tables, printable QR cards, menu list and settings.
+
+## APIs
+
+- `POST /api/orders`, `GET /api/orders`, `PATCH /api/orders/:id`
+- `POST /api/service-requests`, `GET /api/service-requests`, `PATCH /api/service-requests/:id`
+- `GET /api/qr?table=1` — QR PNG for a table
 
 ## Run locally
 
@@ -24,6 +29,9 @@ NEXT_PUBLIC_APP_URL=https://your-final-domain.example
 DATABASE_PATH=/persistent-storage/royal-thadi.db
 ```
 
-`NEXT_PUBLIC_APP_URL` ensures downloaded table QR codes point to the final public website. `DATABASE_PATH` must point to persistent storage when the Node server is deployed.
+`NEXT_PUBLIC_APP_URL` makes the QR codes point at the public website. `DATABASE_PATH` must be on persistent storage.
+Serverless hosts such as Vercel have a read-only filesystem, so the APIs return a clear 503 there until an online database is connected.
 
-The menu catalogue contains 72 items transcribed from the two public Royal Thadi menu images on District. Confirm any future price changes in the admin panel before launch.
+## Menu
+
+72 items in 13 categories, transcribed from the two public Royal Thadi menu images on District and re-checked at 3× zoom.
