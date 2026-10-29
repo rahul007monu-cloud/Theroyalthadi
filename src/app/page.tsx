@@ -1,15 +1,10 @@
 import { RoyalExperience } from "@/components/royal-experience";
+import { parseTableNumber } from "@/lib/api";
 
-export default async function Home({
-  searchParams
-}: {
-  searchParams: Promise<{ table?: string }>;
-}) {
+export default async function Home({ searchParams }: { searchParams: Promise<{ table?: string }> }) {
   const params = await searchParams;
-  const requestedTable = Number(params.table);
-  const table = Number.isInteger(requestedTable) && requestedTable >= 1 && requestedTable <= 50
-    ? String(requestedTable).padStart(2, "0")
-    : "07";
+  const tableNumber = parseTableNumber(params.table);
 
-  return <RoyalExperience initialTable={table} />;
+  // Without a valid table QR the menu is browse-only, so no order is ever sent to the wrong table.
+  return <RoyalExperience table={tableNumber ? String(tableNumber).padStart(2, "0") : null} />;
 }

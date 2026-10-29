@@ -1,114 +1,168 @@
-export type MenuCategory = "Popular" | "Coffee" | "Quick Bites" | "Italian" | "Shakes";
+export type MenuCategory =
+  | "Maggi House"
+  | "Snacks"
+  | "Pizza House"
+  | "Paratha House"
+  | "Pasta House"
+  | "Thadi Special"
+  | "Tea House"
+  | "Coffee Special"
+  | "Shakes"
+  | "Smoothie"
+  | "Soup"
+  | "Cocktails"
+  | "Lassi House";
 
 export type MenuItem = {
   id: number;
   name: string;
-  hindiName: string;
-  description: string;
+  /** Only real notes printed on the cafe menu, e.g. tea ingredients. */
+  description?: string;
   price: number;
   category: MenuCategory;
-  image: string;
-  badge?: string;
-  rating: number;
   vegetarian: boolean;
 };
 
-// Initial editable catalogue for the design prototype. Final names and prices
-// should be replaced from the cafe's approved master menu in the admin panel.
-export const menuItems: MenuItem[] = [
-  {
-    id: 1,
-    name: "Royal Tandoori Paneer",
-    hindiName: "रॉयल तंदूरी पनीर",
-    description: "Charred cottage cheese, bell peppers and our house royal marinade.",
-    price: 279,
-    category: "Popular",
-    image: "https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?auto=format&fit=crop&w=1200&q=88",
-    badge: "Bestseller",
-    rating: 4.9,
-    vegetarian: true
-  },
-  {
-    id: 2,
-    name: "Truffle Garden Pizza",
-    hindiName: "ट्रफल गार्डन पिज़्ज़ा",
-    description: "Stone-baked crust, garden vegetables, mozzarella and aromatic truffle oil.",
-    price: 349,
-    category: "Italian",
-    image: "https://images.unsplash.com/photo-1574071318508-1cdbab80d002?auto=format&fit=crop&w=1200&q=88",
-    badge: "Chef's pick",
-    rating: 4.8,
-    vegetarian: true
-  },
-  {
-    id: 3,
-    name: "Velvet Alfredo Pasta",
-    hindiName: "वेलवेट अल्फ्रेडो पास्ता",
-    description: "Silky parmesan cream, herbs and penne finished with cracked pepper.",
-    price: 289,
-    category: "Italian",
-    image: "https://images.unsplash.com/photo-1473093295043-cdd812d0e601?auto=format&fit=crop&w=1200&q=88",
-    rating: 4.7,
-    vegetarian: true
-  },
-  {
-    id: 4,
-    name: "Royal Crunch Burger",
-    hindiName: "रॉयल क्रंच बर्गर",
-    description: "Crisp signature patty, fresh greens, smoked cheese and house sauce.",
-    price: 229,
-    category: "Quick Bites",
-    image: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=1200&q=88",
-    badge: "Popular",
-    rating: 4.8,
-    vegetarian: true
-  },
-  {
-    id: 5,
-    name: "Peri Peri Gold Fries",
-    hindiName: "पेरी पेरी गोल्ड फ्राइज़",
-    description: "Twice-fried golden potatoes dusted with a warm peri peri blend.",
-    price: 179,
-    category: "Quick Bites",
-    image: "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?auto=format&fit=crop&w=1200&q=88",
-    rating: 4.6,
-    vegetarian: true
-  },
-  {
-    id: 6,
-    name: "Crown Cold Coffee",
-    hindiName: "क्राउन कोल्ड कॉफी",
-    description: "Slow-brewed coffee, velvety milk and a cloud of vanilla cream.",
-    price: 199,
-    category: "Coffee",
-    image: "https://images.unsplash.com/photo-1461023058943-07fcbe16d735?auto=format&fit=crop&w=1200&q=88",
-    badge: "Signature",
-    rating: 4.9,
-    vegetarian: true
-  },
-  {
-    id: 7,
-    name: "Hazelnut Cappuccino",
-    hindiName: "हेज़लनट कैपुचीनो",
-    description: "Double espresso, textured milk and toasted hazelnut aroma.",
-    price: 189,
-    category: "Coffee",
-    image: "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=1200&q=88",
-    rating: 4.7,
-    vegetarian: true
-  },
-  {
-    id: 8,
-    name: "Belgian Chocolate Shake",
-    hindiName: "बेल्जियन चॉकलेट शेक",
-    description: "Dark Belgian cocoa, premium ice cream and chocolate shards.",
-    price: 239,
-    category: "Shakes",
-    image: "https://images.unsplash.com/photo-1572490122747-3968b75cc699?auto=format&fit=crop&w=1200&q=88",
-    badge: "Indulgent",
-    rating: 4.8,
-    vegetarian: true
-  }
-];
+type MenuEntry = readonly [name: string, price: number, note?: string];
 
-export const categories = ["All", "Popular", "Coffee", "Quick Bites", "Italian", "Shakes"] as const;
+const catalogue: Record<MenuCategory, readonly MenuEntry[]> = {
+  "Maggi House": [
+    ["Maggi", 40],
+    ["Masala Maggi", 60],
+    ["Veg Maggi", 60],
+    ["Paneer Maggi", 80],
+    ["Cheese Maggi", 80],
+    ["Paneer Cheese Maggi", 90]
+  ],
+  Snacks: [
+    ["Bread Butter", 20],
+    ["Veg Sandwich", 50],
+    ["Aloo Cheese Sandwich", 60],
+    ["Paneer Cheese Sandwich", 90],
+    ["Garlic Cheese Bread", 50],
+    ["Burger", 50],
+    ["Veg Burger", 60],
+    ["Veg with Cheese Burger", 70],
+    ["Chilli Paneer", 150],
+    ["Manchurian", 130],
+    ["Chowmine", 80],
+    ["Chowmine with Manchurian", 160],
+    ["French Fries", 120],
+    ["Chilli French Fries", 150],
+    ["Paneer & Cheese Roll", 120],
+    ["Aloo Franki Roll", 80],
+    ["Veg Cheese Roll", 80],
+    ["Paneer Pakoda", 150],
+    ["Mix Pakoda", 130],
+    ["Aloo Pyaj Pakoda", 100],
+    ["Bread Aloo Roll", 80],
+    ["Bread Paneer Roll", 120]
+  ],
+  "Pizza House": [
+    ["Veg Cheese Pizza", 140],
+    ["Paneer Cheese Pizza", 150],
+    ["Onion Capsicum Pizza", 140]
+  ],
+  "Paratha House": [
+    ["Aloo Paratha", 60],
+    ["Paneer Paratha", 100],
+    ["Aloo Pyaj Paratha", 60],
+    ["Mix Veg Paratha", 60],
+    ["Cheese Paratha", 100]
+  ],
+  "Pasta House": [
+    ["Red Pasta", 120],
+    ["White Pasta", 120],
+    ["Red Cheese Pasta", 140],
+    ["White Cheese Pasta", 140],
+    ["Red White Mix Pasta", 120]
+  ],
+  "Thadi Special": [
+    ["Mojito", 40],
+    ["Aam Panna", 20],
+    ["Nimbu Panna", 20]
+  ],
+  "Tea House": [
+    ["Masala Tea", 20, "Ginger, cardamom and clove"],
+    ["Masala Tea (Kullad)", 30],
+    ["Saffron Tea", 40],
+    ["Ice Tea", 40, "Ice, mint and lemon"],
+    ["Black Lemon Tea", 40],
+    ["Green Lemon Tea", 40]
+  ],
+  "Coffee Special": [
+    ["Hot Coffee", 30],
+    ["Black Coffee", 30],
+    ["Cold Coffee", 50],
+    ["Cold Coffee Special", 60]
+  ],
+  Shakes: [
+    ["Mango Shake", 80],
+    ["Strawberry Shake", 80],
+    ["Chocolate Shake", 80],
+    ["Pan Masala Shake", 80]
+  ],
+  Smoothie: [
+    ["Mango Smoothie", 70],
+    ["Orange Smoothie", 70],
+    ["Mango & Orange Smoothie", 70],
+    ["Cola Smoothie", 70]
+  ],
+  Soup: [
+    ["Tomato Soup", 40],
+    ["Veg Manchow Soup", 40],
+    ["Veg Sweet Corn Soup", 40],
+    ["Hot N Sour Soup", 40],
+    ["Mix Veg Soup", 40]
+  ],
+  Cocktails: [
+    ["Golden Wine", 40],
+    ["Blood Orange", 40]
+  ],
+  "Lassi House": [
+    ["Plain Lassi", 30],
+    ["Makhaniya Lassi", 40],
+    ["Masala Chhachh", 30]
+  ]
+};
+
+export const menuCategories = Object.keys(catalogue) as MenuCategory[];
+
+export const categoryHindi: Record<MenuCategory, string> = {
+  "Maggi House": "मैगी हाउस",
+  Snacks: "स्नैक्स",
+  "Pizza House": "पिज़्ज़ा हाउस",
+  "Paratha House": "पराठा हाउस",
+  "Pasta House": "पास्ता हाउस",
+  "Thadi Special": "थड़ी स्पेशल",
+  "Tea House": "चाय हाउस",
+  "Coffee Special": "कॉफी स्पेशल",
+  Shakes: "शेक्स",
+  Smoothie: "स्मूदी",
+  Soup: "सूप",
+  Cocktails: "कॉकटेल",
+  "Lassi House": "लस्सी हाउस"
+};
+
+/** Items shown in the "Royal picks" rail. The owner can change this list. */
+export const royalPickNames = [
+  "Masala Tea (Kullad)",
+  "Paneer Cheese Maggi",
+  "Chilli Paneer",
+  "Paneer Cheese Pizza",
+  "Cold Coffee Special",
+  "Mojito"
+] as const;
+
+export const menuItems: MenuItem[] = menuCategories
+  .flatMap((category) =>
+    catalogue[category].map(([name, price, note]) => ({
+      id: 0,
+      name,
+      description: note,
+      price,
+      category,
+      vegetarian: true
+    }))
+  )
+  .map((item, index) => ({ ...item, id: index + 1 }));
