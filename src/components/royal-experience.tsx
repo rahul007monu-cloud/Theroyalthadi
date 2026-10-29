@@ -79,7 +79,6 @@ function MenuCard({ item, quantity, onAdd, onChange }: {
         <div className="menu-card__shade" />
         {item.badge && <span className="dish-badge"><Sparkles size={12} />{item.badge}</span>}
         <span className="veg-mark" title="Vegetarian"><i /></span>
-        <div className="rating-pill"><Star size={12} fill="currentColor" /> {item.rating}</div>
       </div>
       <div className="menu-card__body">
         <div className="dish-heading">
@@ -122,7 +121,7 @@ export function RoyalExperience({ initialTable }: { initialTable: string }) {
   const visibleItems = useMemo(() => {
     const term = search.trim().toLowerCase();
     return menuItems.filter((item) => {
-      const matchesCategory = category === "All" || item.category === category || (category === "Popular" && item.badge);
+      const matchesCategory = category === "All" || item.category === category;
       const matchesSearch = !term || `${item.name} ${item.hindiName} ${item.description}`.toLowerCase().includes(term);
       return matchesCategory && matchesSearch;
     });
@@ -208,7 +207,7 @@ export function RoyalExperience({ initialTable }: { initialTable: string }) {
             <button className="waiter-cta" onClick={callWaiter}><BellRing size={17} /> Call your host</button>
           </div>
           <div className="hero-trust">
-            <div><strong>4.8</strong><span><Star size={12} fill="currentColor" /> guest favourite</span></div>
+            <div><strong>4.5</strong><span><Star size={12} fill="currentColor" /> Google rating</span></div>
             <i />
             <div><strong>50</strong><span>royal tables</span></div>
             <i />

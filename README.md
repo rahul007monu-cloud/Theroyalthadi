@@ -26,4 +26,4 @@ DATABASE_PATH=/persistent-storage/royal-thadi.db
 
 `NEXT_PUBLIC_APP_URL` ensures downloaded table QR codes point to the final public website. `DATABASE_PATH` must point to persistent storage when the Node server is deployed.
 
-The current menu is an editable visual catalogue. Replace its initial content with the cafe's approved master menu before launch.
+The menu catalogue contains 72 items transcribed from the two public Royal Thadi menu images on District. Confirm any future price changes in the admin panel before launch.
