@@ -42,6 +42,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { categoryHindi, foodItems, menuCategories, menuItems, type MenuCategory, type MenuItem } from "@/data/menu";
 import type { UpiConfig } from "@/lib/types";
 import { buildUpiLink } from "@/lib/upi";
+import { usePwaInstall } from "@/components/pwa";
 
 const KulladScene = dynamic(() => import("@/components/kullad-scene"), { ssr: false });
 
@@ -81,6 +82,26 @@ const serviceOptions: { type: ServiceType; title: string; hindi: string; icon: L
 
 function sectionId(category: MenuCategory) {
   return `menu-${category.toLowerCase().replace(/[^a-z]+/g, "-")}`;
+}
+
+/** All 50 tables in order, ten per row: 01–10, 11–20, 21–30, 31–40, 41–50. */
+function TableGrid({ selected, onSelect }: { selected: number | null; onSelect: (table: number) => void }) {
+  return (
+    <div className="rt-table-grid" role="group" aria-label="Tables 1 to 50">
+      {TABLES.map((value) => (
+        <button
+          type="button"
+          key={value}
+          className={`rt-table-option ${selected === value ? "is-selected" : ""}`}
+          onClick={() => onSelect(value)}
+          aria-pressed={selected === value}
+          aria-label={`Table ${value}`}
+        >
+          {pad(value)}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 function QuantityControl({ item, quantity, onChange }: { item: MenuItem; quantity: number; onChange: (amount: number) => void }) {
@@ -153,8 +174,10 @@ export function RoyalExperience({ initialTable, upi }: { initialTable: number | 
   const [sendingService, setSendingService] = useState<ServiceType | null>(null);
   const [adultConfirmed, setAdultConfirmed] = useState(false);
   const [pendingAdultItem, setPendingAdultItem] = useState<MenuItem | null>(null);
+  const [showIosInstall, setShowIosInstall] = useState(false);
   const toastTimer = useRef<number | null>(null);
   const chipsRef = useRef<HTMLDivElement>(null);
+  const pwa = usePwaInstall();
 
   const term = search.trim().toLowerCase();
   const sections = useMemo(
@@ -267,6 +290,19 @@ export function RoyalExperience({ initialTable, upi }: { initialTable: number | 
     setAfterTablePick(null);
     setSheet(next);
     showToast(`Table ${pad(value)} चुनी गई`, "अब आपका order इसी table पर आएगा।");
+  }
+
+  async function installApp() {
+    if (pwa.canPrompt) {
+      const outcome = await pwa.install();
+      if (outcome === "accepted") showToast("App install हो गया", "Home screen से The Royal Thadi खोलें।");
+      return;
+    }
+    if (pwa.isIOS) {
+      setShowIosInstall(true);
+      return;
+    }
+    showToast("App install करें", "Browser menu (⋮) में “Install app” या “Add to Home screen” दबाएँ।");
   }
 
   async function placeOrder() {
@@ -405,13 +441,31 @@ export function RoyalExperience({ initialTable, upi }: { initialTable: number | 
           <KulladScene onReady={() => setSceneReady(true)} onFail={() => setSceneReady(false)} />
         </div>
         <div className="rt-hero__actions">
-          <button type="button" className={`rt-button ${table ? "rt-button--ghost" : "rt-button--gold"}`} onClick={() => setSheet("table")}>
-            {tableLabel ? `Table ${tableLabel} · बदलें` : "अपनी table चुनें"}
-          </button>
           <button type="button" className="rt-button rt-button--ghost" onClick={() => openNeedingTable("service")}>
             <BellRing size={18} /> Service
           </button>
+          {!pwa.installed && (
+            <button type="button" className="rt-button rt-button--ghost" onClick={installApp}>
+              <Smartphone size={18} /> App install
+            </button>
+          )}
         </div>
+      </section>
+
+      <section className="rt-tables" id="tables" aria-labelledby="rt-tables-title">
+        <div className="rt-tables__head">
+          <div>
+            <p className="rt-kicker">Tables 01 – 50</p>
+            <h2 id="rt-tables-title">{tableLabel ? `आपकी Table ${tableLabel}` : "अपनी table चुनें"}</h2>
+          </div>
+          {tableLabel && (
+            <span className="rt-tables__chosen">
+              <Check size={16} /> चुनी गई
+            </span>
+          )}
+        </div>
+        <TableGrid selected={table} onSelect={chooseTable} />
+        <p className="rt-tables__hint">अपनी table का नंबर दबाएँ, फिर menu से कुछ भी order करें।</p>
       </section>
 
       <section className="rt-menu" id="menu" aria-label="Menu">
@@ -556,19 +610,8 @@ export function RoyalExperience({ initialTable, upi }: { initialTable: number | 
             <X size={18} />
           </button>
         </header>
-        <div className="rt-table-grid">
-          {TABLES.map((value) => (
-            <button
-              type="button"
-              key={value}
-              className={`rt-table-option ${table === value ? "is-selected" : ""}`}
-              onClick={() => chooseTable(value)}
-              aria-pressed={table === value}
-              aria-label={`Table ${value}`}
-            >
-              {pad(value)}
-            </button>
-          ))}
+        <div className="rt-sheet__body">
+          <TableGrid selected={table} onSelect={chooseTable} />
         </div>
       </aside>
 
@@ -706,21 +749,32 @@ export function RoyalExperience({ initialTable, upi }: { initialTable: number | 
               <>
                 <p className="rt-pay-question">Payment कैसे करेंगे?</p>
                 <div className="rt-pay-options">
-                  {upi && (
-                    <button type="button" className="rt-pay-option" onClick={() => savePayment("UPI")} disabled={savingPayment}>
-                      <QrCode size={26} />
-                      <strong>UPI / QR</strong>
-                      <small>अभी pay करें</small>
-                    </button>
-                  )}
+                  <button type="button" className="rt-pay-option" onClick={() => savePayment("UPI")} disabled={savingPayment}>
+                    <QrCode size={26} />
+                    <strong>UPI / QR</strong>
+                    <small>अभी pay करें</small>
+                  </button>
                   <button type="button" className="rt-pay-option" onClick={() => savePayment("COUNTER")} disabled={savingPayment}>
                     <Banknote size={26} />
                     <strong>Cash / Counter</strong>
                     <small>बाद में pay करें</small>
                   </button>
                 </div>
-                {!upi && <p className="rt-fine">UPI QR जल्द जुड़ेगा। अभी counter पर payment करें।</p>}
               </>
+            )}
+
+            {placedOrder.payment === "UPI" && !upi && (
+              <div className="rt-upi">
+                <div className="rt-upi__placeholder" role="img" aria-label="Payment QR will appear here">
+                  <QrCode size={64} strokeWidth={1.2} />
+                  <span>Payment QR</span>
+                </div>
+                <p className="rt-upi__payee">₹{placedOrder.total} · Table {pad(placedOrder.table)}</p>
+                <p className="rt-fine">Payment QR अभी add नहीं हुआ है। कृपया counter पर pay करें।</p>
+                <button type="button" className="rt-button rt-button--ghost rt-button--block" onClick={() => savePayment("COUNTER")} disabled={savingPayment}>
+                  <Banknote size={18} /> Cash / Counter से pay करूँगा
+                </button>
+              </div>
             )}
 
             {placedOrder.payment === "UPI" && upi && (
@@ -762,6 +816,31 @@ export function RoyalExperience({ initialTable, upi }: { initialTable: number | 
               onClick={() => setPlacedOrder(null)}
             >
               {placedOrder.payment === "choose" ? "बाद में चुनेंगे" : "Menu पर वापस जाएँ"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showIosInstall && (
+        <div className="rt-confirm" role="dialog" aria-modal="true" aria-labelledby="rt-ios-title" onClick={() => setShowIosInstall(false)}>
+          <div className="rt-confirm__card" onClick={(event) => event.stopPropagation()}>
+            <span className="rt-confirm__seal">
+              <Smartphone size={30} />
+            </span>
+            <h2 id="rt-ios-title">iPhone पर App install करें</h2>
+            <ol className="rt-steps">
+              <li>
+                Safari में नीचे <b>Share</b> (□↑) दबाएँ
+              </li>
+              <li>
+                <b>Add to Home Screen</b> चुनें
+              </li>
+              <li>
+                <b>Add</b> दबाएँ
+              </li>
+            </ol>
+            <button type="button" className="rt-button rt-button--gold rt-button--block" onClick={() => setShowIosInstall(false)}>
+              ठीक है
             </button>
           </div>
         </div>

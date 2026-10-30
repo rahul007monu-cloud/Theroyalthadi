@@ -7,24 +7,14 @@ import type {
   PaymentStatus,
   ServiceRequest,
   ServiceType,
+  StorageMode,
   StoredOrder,
   StoredOrderItem
 } from "@/lib/types";
+import type { Store } from "@/lib/store-types";
+import { createCacheStore } from "@/lib/cache-store";
 
-export type NewOrderItem = { menuItemId: number; name: string; unitPrice: number; quantity: number };
-export type NewOrder = { tableNumber: number; note: string; items: NewOrderItem[] };
-export type OrderChanges = { status?: OrderStatus; paymentMethod?: PaymentMethod; paymentStatus?: PaymentStatus };
-
-export interface Store {
-  createOrder(order: NewOrder): Promise<{ id: number; total: number }>;
-  listOrders(limit?: number): Promise<StoredOrder[]>;
-  updateOrder(id: number, changes: OrderChanges): Promise<boolean>;
-  /** Customer-side payment update: never downgrades or upgrades a PAID order. */
-  recordPaymentChoice(id: number, method: PaymentMethod, claimedPaid: boolean): Promise<boolean>;
-  createServiceRequest(tableNumber: number, type: ServiceType): Promise<{ request: ServiceRequest; duplicate: boolean }>;
-  listOpenServiceRequests(): Promise<ServiceRequest[]>;
-  resolveServiceRequest(id: number): Promise<boolean>;
-}
+export type { NewOrder, NewOrderItem, OrderChanges, Store } from "@/lib/store-types";
 
 /** Thrown when no database can be reached (for example Vercel without a connected database). */
 export class DatabaseUnavailableError extends Error {}
@@ -288,20 +278,30 @@ async function createSqliteStore(): Promise<Store> {
   };
 }
 
-const globalStore = globalThis as typeof globalThis & { royalThadiStore?: Promise<Store> };
+const globalStore = globalThis as typeof globalThis & { royalThadiStore?: Promise<{ store: Store; kind: "postgres" | "cache" | "sqlite" }> };
 
-async function openStore(): Promise<Store> {
+function hasRuntimeCache() {
+  const context = (globalThis as Record<symbol, { get?: () => { cache?: unknown } } | undefined>)[Symbol.for("@vercel/request-context")]?.get?.();
+  return Boolean(context?.cache || (process.env.RUNTIME_CACHE_ENDPOINT && process.env.RUNTIME_CACHE_HEADERS));
+}
+
+async function openStore(): Promise<{ store: Store; kind: "postgres" | "cache" | "sqlite" }> {
   const connectionString = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
   if (connectionString) {
     const { Pool } = await import("pg");
     const pool = new Pool({ connectionString, max: 3, idleTimeoutMillis: 10_000, connectionTimeoutMillis: 8_000 });
     await ensurePostgresSchema(pool);
-    return createPostgresStore(pool);
+    return { store: createPostgresStore(pool), kind: "postgres" };
   }
-  return createSqliteStore();
+  if (process.env.VERCEL) {
+    // No database connected yet: use Vercel Runtime Cache, which needs no setup.
+    const { getCache } = await import("@vercel/functions");
+    return { store: createCacheStore(getCache({ namespace: "royal-thadi-v1" })), kind: "cache" };
+  }
+  return { store: await createSqliteStore(), kind: "sqlite" };
 }
 
-export async function getStore(): Promise<Store> {
+async function openOnce() {
   if (!globalStore.royalThadiStore) {
     globalStore.royalThadiStore = openStore().catch((error) => {
       globalStore.royalThadiStore = undefined;
@@ -309,4 +309,15 @@ export async function getStore(): Promise<Store> {
     });
   }
   return globalStore.royalThadiStore;
+}
+
+export async function getStore(): Promise<Store> {
+  return (await openOnce()).store;
+}
+
+/** Call inside a request: Runtime Cache availability is known per request. */
+export async function getStorageMode(): Promise<StorageMode> {
+  const { kind } = await openOnce();
+  if (kind === "cache") return hasRuntimeCache() ? "runtime-cache" : "memory";
+  return kind;
 }

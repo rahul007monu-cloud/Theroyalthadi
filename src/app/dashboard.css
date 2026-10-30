@@ -1168,3 +1168,22 @@
   border-radius: 14px;
   background: #fff;
 }
+
+.dash-notice {
+  margin: 0 0 16px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(240, 160, 80, 0.55);
+  background: rgba(240, 160, 80, 0.1);
+  color: #ffd9b3;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.kitchen-shell > .dash-notice {
+  margin: 0 24px 16px;
+}
+@media (max-width: 760px) {
+  .kitchen-shell > .dash-notice {
+    margin: 0 14px 14px;
+  }
+}

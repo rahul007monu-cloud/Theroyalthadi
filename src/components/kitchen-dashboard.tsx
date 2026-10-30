@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { BellRing, Check, ChefHat, Clock3, Droplets, LayoutDashboard, ReceiptIndianRupee, RefreshCw, UtensilsCrossed } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { DashBrand } from "@/components/dash-brand";
 import { PaymentBadge } from "@/components/payment-badge";
-import type { OrderStatus, ServiceRequest, StoredOrder } from "@/lib/types";
+import type { OrderStatus } from "@/lib/types";
+import { StorageNotice, useLiveData } from "@/components/use-live-data";
 import { minutesSince, relativeTime, SERVICE_LABELS } from "@/lib/time";
 
 const columns: { status: OrderStatus; title: string; action: string; next: OrderStatus }[] = [
@@ -19,38 +20,7 @@ const columns: { status: OrderStatus; title: string; action: string; next: Order
 const serviceIcons: Record<string, LucideIcon> = { WAITER: BellRing, WATER: Droplets, BILL: ReceiptIndianRupee };
 
 export function KitchenDashboard() {
-  const [orders, setOrders] = useState<StoredOrder[]>([]);
-  const [requests, setRequests] = useState<ServiceRequest[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [now, setNow] = useState<number | null>(null);
-
-  const load = useCallback(async () => {
-    try {
-      const [ordersResponse, requestsResponse] = await Promise.all([
-        fetch("/api/orders", { cache: "no-store" }),
-        fetch("/api/service-requests", { cache: "no-store" })
-      ]);
-      if (!ordersResponse.ok || !requestsResponse.ok) throw new Error("Server not reachable");
-      setOrders(((await ordersResponse.json()) as { orders: StoredOrder[] }).orders);
-      setRequests(((await requestsResponse.json()) as { requests: ServiceRequest[] }).requests);
-      setError("");
-    } catch {
-      setError("Orders load नहीं हुए। Internet / server check करें।");
-    } finally {
-      setLoading(false);
-      setNow(Date.now());
-    }
-  }, []);
-
-  useEffect(() => {
-    const initial = window.setTimeout(load, 0);
-    const timer = window.setInterval(load, 3000);
-    return () => {
-      window.clearTimeout(initial);
-      window.clearInterval(timer);
-    };
-  }, [load]);
+  const { orders, requests, error, loading, now, storage, reload: load, setOrders, setRequests } = useLiveData(4000);
 
   const activeOrders = useMemo(() => orders.filter((order) => columns.some((column) => column.status === order.status)), [orders]);
   const waiting = orders.filter((order) => order.status === "NEW").length;
@@ -120,6 +90,7 @@ export function KitchenDashboard() {
       </section>
 
       {error && <p className="dash-error">{error}</p>}
+      <StorageNotice storage={storage} />
 
       {requests.length > 0 && (
         <section className="service-strip" aria-label="Table service requests">
