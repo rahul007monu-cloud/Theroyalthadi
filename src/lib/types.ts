@@ -42,3 +42,19 @@ export type ServiceRequest = {
 };
 
 export type UpiConfig = { id: string; name: string };
+
+/**
+ * Where orders are kept:
+ * - postgres: permanent hosted database (DATABASE_URL / POSTGRES_URL)
+ * - runtime-cache: Vercel Runtime Cache, works with zero setup but is temporary
+ * - memory: single server instance only (fallback when no shared cache exists)
+ * - sqlite: local file, for running on one machine
+ */
+export type StorageMode = "postgres" | "runtime-cache" | "memory" | "sqlite";
+
+export type LiveSnapshot = {
+  version: number | null;
+  storage: StorageMode;
+  orders: StoredOrder[];
+  requests: ServiceRequest[];
+};
